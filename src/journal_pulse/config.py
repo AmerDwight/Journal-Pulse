@@ -24,3 +24,11 @@ class Settings(BaseSettings):
     discord_bot_token: str = ''
     discord_channel_id: str = ''
     discord_enable_message_content_intent: bool = True
+
+    llm_backend: str = 'openrouter'
+    llm_provider_order: str = 'openrouter'
+    llm_api_base_url: str = 'https://openrouter.ai/api/v1'
+    llm_api_key: str = ''
+    llm_model: str = 'nvidia/nemotron-3-super-120b-a12b:free'
+    llm_timeout_seconds: float = 30.0
+    llm_extra_headers_json: str = '{}'
