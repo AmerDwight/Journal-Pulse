@@ -1,0 +1,190 @@
+{
+  "timestamp": "2026-04-25T08:54:11.678730Z",
+  "tested": 14,
+  "working": 11,
+  "results": [
+    {
+      "name": "Nature RSS",
+      "type": "rss",
+      "url": "https://www.nature.com/nature.rss",
+      "group": "direct-journal",
+      "status": 200,
+      "content_type": "application/rss+xml; charset=utf-8",
+      "sample_count": 0,
+      "samples": [],
+      "sample_links": [],
+      "ok": true
+    },
+    {
+      "name": "Science RSS",
+      "type": "rss",
+      "url": "https://www.science.org/action/showFeed?type=etoc&feed=rss&jc=science",
+      "group": "direct-journal",
+      "status": 200,
+      "content_type": "application/xml;charset=UTF-8",
+      "sample_count": 0,
+      "samples": [],
+      "sample_links": [],
+      "ok": true
+    },
+    {
+      "name": "Cell RSS",
+      "type": "rss",
+      "url": "https://www.cell.com/cell/current.rss",
+      "group": "direct-journal",
+      "status": 200,
+      "content_type": "application/rss+xml;charset=UTF-8",
+      "sample_count": 0,
+      "samples": [],
+      "sample_links": [],
+      "ok": true
+    },
+    {
+      "name": "PNAS RSS",
+      "type": "rss",
+      "url": "https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=pnas",
+      "group": "direct-journal",
+      "status": 200,
+      "content_type": "application/xml;charset=UTF-8",
+      "sample_count": 0,
+      "samples": [],
+      "sample_links": [],
+      "ok": true
+    },
+    {
+      "name": "eLife RSS",
+      "type": "rss",
+      "url": "https://elifesciences.org/rss/current.xml",
+      "group": "direct-journal",
+      "status": 404,
+      "error": "HTTPError: Not Found",
+      "ok": false
+    },
+    {
+      "name": "The Lancet RSS",
+      "type": "rss",
+      "url": "https://www.thelancet.com/rssfeed/lancet_current.xml",
+      "group": "direct-journal",
+      "status": 200,
+      "content_type": "application/rss+xml;charset=UTF-8",
+      "sample_count": 0,
+      "samples": [],
+      "sample_links": [],
+      "ok": true
+    },
+    {
+      "name": "NEJM RSS",
+      "type": "rss",
+      "url": "https://www.nejm.org/action/showFeed?type=etoc&feed=rss&jc=nejm",
+      "group": "direct-journal",
+      "status": 200,
+      "content_type": "application/xml;charset=UTF-8",
+      "sample_count": 0,
+      "samples": [],
+      "sample_links": [],
+      "ok": true
+    },
+    {
+      "name": "JAMA RSS",
+      "type": "rss",
+      "url": "https://jamanetwork.com/rss/site_2/0.xml",
+      "group": "direct-journal",
+      "status": 404,
+      "error": "HTTPError: Not Found",
+      "ok": false
+    },
+    {
+      "name": "BMJ RSS",
+      "type": "rss",
+      "url": "https://www.bmj.com/rss/latest.xml",
+      "group": "direct-journal",
+      "status": 404,
+      "error": "HTTPError: Not Found",
+      "ok": false
+    },
+    {
+      "name": "PubMed ESearch",
+      "type": "json",
+      "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=%28Nature%5Bjour%5D+OR+Science%5Bjour%5D+OR+Cell%5Bjour%5D+OR+PNAS%5Bjour%5D+OR+Lancet%5Bjour%5D+OR+BMJ%5Bjour%5D+OR+JAMA%5Bjour%5D+OR+N+Engl+J+Med%5Bjour%5D%29&retmode=json&retmax=5&sort=pub+date",
+      "group": "aggregator",
+      "status": 200,
+      "content_type": "application/json; charset=UTF-8",
+      "sample_count": 5,
+      "count_hint": "1043326",
+      "samples": [
+        "41421841",
+        "41421840",
+        "41421839"
+      ],
+      "ok": true
+    },
+    {
+      "name": "Crossref Works",
+      "type": "json",
+      "url": "https://api.crossref.org/works?filter=from-pub-date:2026-04-01,until-pub-date:2026-04-25&query.container-title=Nature&rows=5",
+      "group": "aggregator",
+      "status": 200,
+      "content_type": "application/json",
+      "sample_count": 5,
+      "count_hint": 2565,
+      "samples": [
+        "Lift off! Artemis II mission sends humans to the Moon — opening a new era of exploration",
+        "Giant cancer study reveals effectiveness of ‘off label’ treatments",
+        "AI models ‘subliminally’ transmit biases when training other systems"
+      ],
+      "ok": true
+    },
+    {
+      "name": "DOAJ Articles API",
+      "type": "json",
+      "url": "https://doaj.org/api/search/articles/nature?pageSize=5",
+      "group": "aggregator",
+      "status": 200,
+      "content_type": "application/json",
+      "sample_count": 5,
+      "count_hint": 661614,
+      "samples": [
+        "Bio-Engineered Graphene-Based Cage for Efficient Local Enrichment and Biodegradation of Aqueous Organic Wastes",
+        "Family and community resilience: a Photovoice study",
+        "The Protection of Civilians: An Evolving Paradigm?"
+      ],
+      "ok": true
+    },
+    {
+      "name": "bioRxiv API",
+      "type": "json",
+      "url": "https://api.biorxiv.org/details/biorxiv/2026-04-20/2026-04-25/0",
+      "group": "aggregator",
+      "status": 200,
+      "content_type": "application/json",
+      "sample_count": 5,
+      "count_hint": 30,
+      "samples": [
+        "How and why ampliconic genes survive on the human Y chromosome",
+        "Pontocerebellar Hypoplasia linked mutations of the deadenylase Target of EGR1 (TOE1) impair thermal stability, ribonuclease activity, and oligomerization.",
+        "Candida albicans drives colorectal cancer progression by inducing hypoxia signaling"
+      ],
+      "ok": true
+    },
+    {
+      "name": "arXiv API",
+      "type": "rss",
+      "url": "https://export.arxiv.org/api/query?search_query=all:biology&start=0&max_results=5",
+      "group": "aggregator",
+      "status": 200,
+      "content_type": "application/atom+xml; charset=utf-8",
+      "sample_count": 5,
+      "samples": [
+        "Bayesian uncertainty analysis for complex systems biology models: emulation, global parameter searches and evaluation of gene functions",
+        "From Physics to Biology by Extending Criticality and Symmetry Breakings",
+        "The use of information theory in evolutionary biology"
+      ],
+      "sample_links": [
+        "https://arxiv.org/abs/1607.06358v2",
+        "https://arxiv.org/abs/1103.1833v2",
+        "https://arxiv.org/abs/1112.3867v1"
+      ],
+      "ok": true
+    }
+  ]
+}
