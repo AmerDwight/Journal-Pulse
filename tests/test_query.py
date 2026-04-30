@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from journal_pulse.models import ArticleRecord
-from journal_pulse.services.query import find_article_by_title, format_article_detail, get_article_by_id
+from journal_pulse.services.query import find_article_by_title, format_article_detail, get_article_by_id, list_articles
 from journal_pulse.storage.memory import InMemoryObjectStore
 
 
@@ -94,3 +94,35 @@ def test_format_article_detail_strips_html_from_english_summary_fields():
     assert '<p>' not in detail
     assert 'Summary：A Nature analysis shows that the Trump administration has terminated more than 100 advisory committees to science agencies.' in detail
     assert 'Published online' not in detail
+
+
+def test_list_articles_can_exclude_future_dated_records_with_until_cutoff():
+    store = InMemoryObjectStore()
+    recent = ArticleRecord(
+        source='nature',
+        source_type='rss',
+        article_id='recent-1',
+        title='Recent paper',
+        url='https://example.com/recent-1',
+        published_at=datetime(2026, 4, 29, tzinfo=timezone.utc),
+        summary='summary',
+    )
+    future = ArticleRecord(
+        source='pubmed',
+        source_type='api',
+        article_id='future-1',
+        title='Future paper',
+        url='https://example.com/future-1',
+        published_at=datetime(2026, 12, 20, tzinfo=timezone.utc),
+        summary='summary',
+    )
+    store.put_json('articles/recent-1.json', recent.model_dump(mode='json'))
+    store.put_json('articles/future-1.json', future.model_dump(mode='json'))
+
+    articles = list_articles(
+        store=store,
+        since=datetime(2026, 4, 23, tzinfo=timezone.utc),
+        until=datetime(2026, 4, 30, tzinfo=timezone.utc),
+    )
+
+    assert [article.article_id for article in articles] == ['recent-1']
