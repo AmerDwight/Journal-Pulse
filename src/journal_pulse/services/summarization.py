@@ -8,6 +8,7 @@ from journal_pulse.models import ArticleRecord
 
 _BLOCK_ENDINGS_PATTERN = r'</(?:p|div|section|article|li|ul|ol|br|h[1-6])\s*>'
 _METADATA_PATTERN = r'(published online:|doi:\s*10\.|^nature,\s|^science,\s|^cell,\s|^pnas,\s)'
+_DETAIL_MAX_CHARS = 160
 
 
 def clean_summary_text(text: str) -> str:
@@ -44,19 +45,55 @@ def _truncate(text: str, max_length: int) -> str:
     return text[:max_length].rstrip() + '…'
 
 
-def build_detail_summary_zh(article: ArticleRecord, *, summarizer=None, max_chars: int = 160) -> str:
+def _summarize_to_zh(*, article: ArticleRecord, summarizer, max_chars: int = _DETAIL_MAX_CHARS) -> str:
+    if summarizer is None:
+        return ''
     source_text = _source_text(article)
-    if summarizer is not None:
-        try:
-            summarized = summarizer.summarize(title=article.title, source_text=source_text, max_chars=max_chars)
-            if summarized:
-                return summarized.strip()
-        except Exception:
-            pass
+    if not source_text:
+        return ''
+    try:
+        summarized = summarizer.summarize(title=article.title, source_text=source_text, max_chars=max_chars)
+    except Exception:
+        return ''
+    return summarized.strip() if summarized else ''
+
+
+def populate_cached_summaries(article: ArticleRecord, *, summarizer=None, brief_max_length: int = 80) -> ArticleRecord:
+    cached_detail = getattr(article, 'summary_zh', '').strip()
+    cached_brief = getattr(article, 'brief_summary_zh', '').strip()
+    if cached_detail and cached_brief:
+        return article
+
+    detail_summary = cached_detail or _summarize_to_zh(article=article, summarizer=summarizer)
+    if not detail_summary:
+        return article
+
+    brief_summary = cached_brief or _truncate(detail_summary, brief_max_length)
+    return article.model_copy(update={'summary_zh': detail_summary, 'brief_summary_zh': brief_summary})
+
+
+def build_detail_summary_zh(article: ArticleRecord, *, summarizer=None, max_chars: int = _DETAIL_MAX_CHARS) -> str:
+    cached = getattr(article, 'summary_zh', '').strip()
+    if cached:
+        return cached
+
+    summarized = _summarize_to_zh(article=article, summarizer=summarizer, max_chars=max_chars)
+    if summarized:
+        return summarized
+
+    source_text = _source_text(article)
     return f'中文摘要待補：{_truncate(source_text, 120)}'
 
 
 def build_brief_summary_zh(article: ArticleRecord, *, summarizer=None, max_length: int = 80) -> str:
+    cached_brief = getattr(article, 'brief_summary_zh', '').strip()
+    if cached_brief:
+        return _truncate(cached_brief, max_length)
+
+    cached_detail = getattr(article, 'summary_zh', '').strip()
+    if cached_detail:
+        return _truncate(cached_detail, max_length)
+
     detail_summary = build_detail_summary_zh(article, summarizer=summarizer)
     if detail_summary.startswith('中文摘要待補：'):
         detail_summary = detail_summary.removeprefix('中文摘要待補：').strip()

@@ -117,18 +117,45 @@ Root cause established during debugging:
 - a one-week window contained many records, so response time scaled linearly with article count
 - some PubMed records carried future publication dates and were incorrectly included in recent-history windows because the query had a lower bound but no upper bound
 
-Implemented fix direction:
+Initial fix direction:
 
-- history replies now list papers without per-item inline summaries
 - recent-history queries now apply an upper time bound (`until=now`)
 - future-dated records are excluded from `1周` / `2周` / `1個月` history windows
+- the interactive path was temporarily kept lightweight to stop per-request timeout behavior
 
 Observed result during verification:
 
 - the history reply path dropped from timeout-scale behavior to near-instant local generation
 - one-week history count dropped from an inflated value that included future-dated PubMed items to a bounded non-future set
 
-### 7. CLI additions
+### 7. Ingest-time Chinese summary caching
+
+The next step was to preserve concise history replies **without** reintroducing live per-article LLM latency during Discord interaction.
+
+Implemented direction:
+
+- article records now support persisted Chinese summary fields:
+  - `summary_zh`
+  - `brief_summary_zh`
+- the ingest flow now accepts an optional summarizer and precomputes Chinese summaries before article JSON is stored
+- cached summaries are derived once per stored article and then reused by downstream readers
+- history replies now reuse the cached brief Chinese summary from storage instead of issuing live LLM calls
+- mention-detail replies prefer the cached detailed Chinese summary when present
+- broadcast formatting can also reuse the cached brief summary instead of depending on fresh runtime generation
+
+Important architecture notes:
+
+- ingest-time enrichment stays optional; if no summarizer is configured, articles are still stored normally
+- placeholder fallback text is **not** persisted into storage as if it were a real Chinese summary
+- history interaction no longer constructs a runtime summarizer, so the `history` path remains bounded by local storage reads and formatting work only
+
+Observed result during verification:
+
+- history replies can include concise Chinese summaries again while remaining local/cache-backed at read time
+- ingest-time LLM work shifts the latency cost to the crawl phase instead of the interactive Discord history path
+- detail and broadcast paths can reuse the same persisted Chinese summary fields, reducing repeated summarization work across features
+
+### 8. CLI additions
 
 The CLI was extended to support the interactive bot workflow.
 
@@ -157,6 +184,8 @@ Coverage was added or updated for:
 - Discord gateway bot mention parsing and reply construction
 - history prompt / range parsing behavior
 - history reply formatting and chunking
+- reuse of cached Chinese summaries in history replies
+- ingest-time persistence of generated Chinese summaries
 - exclusion of future-dated records from bounded history windows
 - CLI command integration
 - config fields for Discord and LLM behavior
@@ -183,12 +212,19 @@ At the latest verified point, the full test suite passed:
 
 ### Updated files
 
+- `src/journal_pulse/models.py`
+- `src/journal_pulse/services/ingest.py`
+- `src/journal_pulse/services/summarization.py`
 - `src/journal_pulse/services/query.py`
 - `src/journal_pulse/services/monitoring.py`
 - `src/journal_pulse/config.py`
 - `src/journal_pulse/cli.py`
+- `src/journal_pulse/delivery/discord_gateway_bot.py`
 - `pyproject.toml`
 - `tests/test_query.py`
+- `tests/test_ingest.py`
+- `tests/test_summarization.py`
+- `tests/test_discord_gateway_bot.py`
 - `tests/test_cli.py`
 - `tests/test_config.py`
 - `tests/test_scheduler_cli.py`

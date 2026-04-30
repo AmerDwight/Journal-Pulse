@@ -5,6 +5,7 @@ from re import sub
 
 from journal_pulse.models import DailyDigest
 from journal_pulse.services.pipeline import build_digest
+from journal_pulse.services.summarization import populate_cached_summaries
 from journal_pulse.sources.base import SourceDefinition, SourceRegistry
 from journal_pulse.storage.base import ObjectStore
 
@@ -22,6 +23,7 @@ def crawl_sources_once(
     sources: list[SourceDefinition],
     registry: SourceRegistry,
     store: ObjectStore,
+    summarizer=None,
     generated_at: datetime | None = None,
 ) -> DailyDigest:
     generated_at = generated_at or datetime.now(timezone.utc)
@@ -34,6 +36,8 @@ def crawl_sources_once(
         articles.extend(adapter.fetch())
 
     digest = build_digest(articles, generated_at=generated_at)
+    enriched_articles = [populate_cached_summaries(article, summarizer=summarizer) for article in digest.articles]
+    digest = digest.model_copy(update={'articles': enriched_articles})
 
     for article in digest.articles:
         store.put_json(_article_storage_key(article.dedup_key), article.model_dump(mode='json'))
