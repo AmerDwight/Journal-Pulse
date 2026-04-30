@@ -75,3 +75,22 @@ def test_format_article_detail_includes_key_metadata_for_mention_reply():
     assert '中文摘要：中文摘要內容' in detail
     assert 'DOI：10.1000/science-2' in detail
     assert 'URL：https://example.com/science-2' in detail
+
+
+def test_format_article_detail_strips_html_from_english_summary_fields():
+    article = ArticleRecord(
+        source='nature',
+        source_type='rss',
+        article_id='nature-4',
+        title='Science policy',
+        url='https://example.com/nature-4',
+        published_at=datetime(2026, 4, 28, tzinfo=timezone.utc),
+        summary='<p>Nature, Published online: 28 April 2026; <a href="https://www.nature.com/articles/d41586-026-01301-5">doi:10.1038/d41586-026-01301-5</a></p><p>A Nature analysis shows that the Trump administration has terminated more than 100 advisory committees to science agencies.</p>',
+        metadata={'journal': 'Nature'},
+    )
+
+    detail = format_article_detail(article, zh_summary='川普政府已終止逾百個科學諮詢委員會。')
+
+    assert '<p>' not in detail
+    assert 'Summary：A Nature analysis shows that the Trump administration has terminated more than 100 advisory committees to science agencies.' in detail
+    assert 'Published online' not in detail

@@ -86,6 +86,7 @@ def test_show_config_masks_sensitive_values(monkeypatch):
         lambda: settings_cls.model_construct(
             discord_bot_token='super-secret-token',
             minio_secret_key='super-secret-minio-key',
+            llm_api_key='super-secret-llm-key',
             discord_channel_id='1498974591845142650',
         ),
     )
@@ -95,5 +96,7 @@ def test_show_config_masks_sensitive_values(monkeypatch):
     assert result.exit_code == 0
     assert 'super-secret-token' not in result.output
     assert 'super-secret-minio-key' not in result.output
+    assert 'super-secret-llm-key' not in result.output
     assert "'discord_bot_token': '***'" in result.output
     assert "'minio_secret_key': '***'" in result.output
+    assert "'llm_api_key': '***'" in result.output

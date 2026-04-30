@@ -26,6 +26,24 @@ def test_settings_include_discord_delivery_configuration():
     assert settings.discord_enable_message_content_intent is True
 
 
+def test_settings_include_llm_summary_configuration():
+    settings = Settings(
+        llm_backend="openrouter",
+        llm_api_key="secret-key",
+        llm_model="nvidia/nemotron-3-super-120b-a12b:free",
+        llm_timeout_seconds=18.5,
+        llm_extra_headers_json='{"HTTP-Referer": "https://example.com"}',
+    )
+
+    assert settings.llm_backend == "openrouter"
+    assert settings.llm_provider_order == "openrouter"
+    assert settings.llm_api_base_url == "https://openrouter.ai/api/v1"
+    assert settings.llm_api_key == "secret-key"
+    assert settings.llm_model == "nvidia/nemotron-3-super-120b-a12b:free"
+    assert settings.llm_timeout_seconds == 18.5
+    assert settings.llm_extra_headers_json == '{"HTTP-Referer": "https://example.com"}'
+
+
 def test_default_sources_include_mainstream_journals():
     names = {source.name for source in build_default_sources()}
     assert {"nature", "science", "cell"}.issubset(names)
@@ -35,10 +53,15 @@ def test_env_example_has_valid_key_value_lines():
     env_example = Path(__file__).resolve().parent.parent / ".env.example"
 
     lines = env_example.read_text(encoding="utf-8").splitlines()
+    assert all("=" in line for line in lines if line)
 
-    assert all("=" in line for line in lines)
-    assert 'DISCORD_BOT_TOKEN=***' in lines
-    assert 'DISCORD_CHANNEL_ID=' in lines
+    assert "DISCORD_BOT_TOKEN=***" in lines
+    assert "DISCORD_CHANNEL_ID=" in lines
+    assert "LLM_BACKEND=openrouter" in lines
+    assert "LLM_PROVIDER_ORDER=openrouter" in lines
+    assert "LLM_API_BASE_URL=https://openrouter.ai/api/v1" in lines
+    assert "LLM_API_KEY=***" in lines
+    assert "LLM_MODEL=nvidia/nemotron-3-super-120b-a12b:free" in lines
 
 
 def test_gitignore_excludes_sensitive_and_generated_files():

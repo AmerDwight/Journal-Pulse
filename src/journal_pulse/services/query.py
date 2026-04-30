@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from difflib import SequenceMatcher
 
 from journal_pulse.models import ArticleRecord
+from journal_pulse.services.summarization import clean_summary_text
 from journal_pulse.storage.base import ObjectStore
 
 
@@ -34,6 +36,13 @@ def find_article_by_title(*, store: ObjectStore, title_query: str) -> ArticleRec
     return best_match
 
 
+def list_articles(*, store: ObjectStore, since: datetime | None = None) -> list[ArticleRecord]:
+    articles = [ArticleRecord.model_validate(store.get_json(key)) for key in store.list_keys('articles/')]
+    if since is not None:
+        articles = [article for article in articles if article.published_at >= since]
+    return sorted(articles, key=lambda article: (article.published_at, article.article_id), reverse=True)
+
+
 def format_article_detail(article: ArticleRecord, *, zh_summary: str) -> str:
     journal = article.metadata.get('journal', 'Unknown')
     lines = [
@@ -45,8 +54,10 @@ def format_article_detail(article: ArticleRecord, *, zh_summary: str) -> str:
         f'DOI：{article.doi or "N/A"}',
         f'URL：{article.url}',
     ]
-    if article.abstract:
-        lines.append(f'Abstract：{article.abstract}')
-    elif article.summary:
-        lines.append(f'Summary：{article.summary}')
+    cleaned_abstract = clean_summary_text(article.abstract)
+    cleaned_summary = clean_summary_text(article.summary)
+    if cleaned_abstract:
+        lines.append(f'Abstract：{cleaned_abstract}')
+    elif cleaned_summary:
+        lines.append(f'Summary：{cleaned_summary}')
     return '\n'.join(lines)

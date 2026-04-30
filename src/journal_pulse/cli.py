@@ -10,6 +10,7 @@ from journal_pulse.models import ArticleRecord
 from journal_pulse.reporting.markdown import MarkdownReporter
 from journal_pulse.scheduler import build_scheduler
 from journal_pulse.services.ingest import crawl_sources_once
+from journal_pulse.services.llm import build_runtime_summarizer
 from journal_pulse.services.monitoring import (
     build_new_articles_digest,
     format_discord_broadcast,
@@ -18,7 +19,7 @@ from journal_pulse.services.monitoring import (
 )
 from journal_pulse.services.pipeline import build_digest
 from journal_pulse.services.query import get_article_by_id
-from journal_pulse.services.summarization import build_brief_summary_zh, build_runtime_translator
+from journal_pulse.services.summarization import build_brief_summary_zh
 from journal_pulse.sources.adapters import register_builtin_source_types
 from journal_pulse.sources.base import SourceRegistry
 from journal_pulse.sources.defaults import build_default_sources
@@ -31,6 +32,7 @@ _SENSITIVE_SETTING_KEYS = {
     'discord_bot_token',
     'minio_secret_key',
     'minio_access_key',
+    'llm_api_key',
 }
 
 
@@ -115,14 +117,14 @@ def run_discord_monitor_cycle(*, settings: Settings | None = None) -> str:
         raise RuntimeError('Discord bot token/channel id not configured')
 
     delta_digest = build_monitor_delta(settings=settings)
-    translator = None
+    summarizer = None
     try:
-        translator = build_runtime_translator()
+        summarizer = build_runtime_summarizer(settings)
     except Exception:
-        translator = None
+        summarizer = None
     message = format_discord_broadcast(
         delta_digest,
-        summary_builder=lambda article: build_brief_summary_zh(article, translator=translator),
+        summary_builder=lambda article: build_brief_summary_zh(article, summarizer=summarizer),
     )
     notifier = DiscordBotNotifier(
         bot_token=settings.discord_bot_token,

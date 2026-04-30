@@ -17,7 +17,6 @@ dependencies = [
   "minio>=7.2",
   "apscheduler>=3.10",
   "discord.py>=2.7",
-  "deep-translator>=1.11",
 ]
 
 [project.optional-dependencies]
