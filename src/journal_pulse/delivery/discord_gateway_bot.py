@@ -79,11 +79,12 @@ def _split_message_chunks(lines: list[str], *, limit: int = DISCORD_MESSAGE_LIMI
 
 
 def build_history_reply_messages(*, store, choice: str, summary_builder, now: datetime | None = None) -> list[str]:
+    now = now or datetime.now(timezone.utc)
     parsed = parse_history_range(choice, now=now)
     if parsed is None:
         return ['我目前支援的 history 範圍是：1周 / 2周 / 1個月 / All Time。請直接回覆其中一個選項。']
 
-    articles = list_articles(store=store, since=parsed.since)
+    articles = list_articles(store=store, since=parsed.since, until=now)
     if not articles:
         scope = parsed.label if parsed.label == 'All Time' else f'最近 {parsed.label}'
         return [f'{scope} 內目前沒有已儲存的論文。']
@@ -92,7 +93,6 @@ def build_history_reply_messages(*, store, choice: str, summary_builder, now: da
     lines = [header, '']
     for article in articles:
         lines.append(f'- {article.published_at.date().isoformat()} | {article.title}')
-        lines.append(f'  摘要：{summary_builder(article)}')
     return _split_message_chunks(lines)
 
 

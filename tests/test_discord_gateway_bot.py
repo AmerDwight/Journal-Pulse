@@ -86,7 +86,7 @@ def test_parse_history_range_understands_supported_labels():
     assert parsed.since == datetime(2026, 4, 16, 12, 0, tzinfo=timezone.utc)
 
 
-def test_build_history_reply_messages_filters_articles_by_selected_window_and_includes_summaries():
+def test_build_history_reply_messages_filters_articles_by_selected_window_without_inline_summaries():
     store = InMemoryObjectStore()
     recent = _article(article_id='recent', title='Recent paper', published_at=datetime(2026, 4, 28, tzinfo=timezone.utc))
     old = _article(article_id='old', title='Old paper', published_at=datetime(2026, 4, 10, tzinfo=timezone.utc))
@@ -103,7 +103,7 @@ def test_build_history_reply_messages_filters_articles_by_selected_window_and_in
     combined = '\n'.join(messages)
     assert '最近 1周 內共 1 篇論文' in combined
     assert 'Recent paper' in combined
-    assert '摘要：recent' in combined
+    assert '摘要：recent' not in combined
     assert 'Old paper' not in combined
 
 

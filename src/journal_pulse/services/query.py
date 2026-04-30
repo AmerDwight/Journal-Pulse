@@ -36,10 +36,12 @@ def find_article_by_title(*, store: ObjectStore, title_query: str) -> ArticleRec
     return best_match
 
 
-def list_articles(*, store: ObjectStore, since: datetime | None = None) -> list[ArticleRecord]:
+def list_articles(*, store: ObjectStore, since: datetime | None = None, until: datetime | None = None) -> list[ArticleRecord]:
     articles = [ArticleRecord.model_validate(store.get_json(key)) for key in store.list_keys('articles/')]
     if since is not None:
         articles = [article for article in articles if article.published_at >= since]
+    if until is not None:
+        articles = [article for article in articles if article.published_at <= until]
     return sorted(articles, key=lambda article: (article.published_at, article.article_id), reverse=True)
 
 
