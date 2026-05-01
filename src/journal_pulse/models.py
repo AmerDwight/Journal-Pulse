@@ -22,6 +22,8 @@ class ArticleRecord(BaseModel):
     doi: str = ''
     summary: str = ''
     abstract: str = ''
+    summary_zh: str = ''
+    brief_summary_zh: str = ''
     metadata: dict[str, str] = Field(default_factory=dict)
 
     @property

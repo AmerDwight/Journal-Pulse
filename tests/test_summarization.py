@@ -37,6 +37,27 @@ def test_build_brief_summary_zh_summarizes_clean_text_and_truncates_for_broadcas
     ]
 
 
+def test_build_detail_summary_zh_prefers_cached_summary_without_calling_summarizer():
+    article = ArticleRecord(
+        source='nature',
+        article_id='nature-cached',
+        title='Cached summary paper',
+        url='https://example.com/nature-cached',
+        published_at=datetime(2026, 4, 29, tzinfo=timezone.utc),
+        summary='English summary that should not be used.',
+        summary_zh='已快取的中文摘要。',
+        brief_summary_zh='快取短摘要。',
+    )
+    summarizer = DummySummarizer('不應被呼叫')
+
+    detail = build_detail_summary_zh(article, summarizer=summarizer)
+    brief = build_brief_summary_zh(article, summarizer=summarizer)
+
+    assert detail == '已快取的中文摘要。'
+    assert brief == '快取短摘要。'
+    assert summarizer.calls == []
+
+
 def test_build_detail_summary_zh_uses_abstract_when_summary_missing():
     article = ArticleRecord(
         source='science',

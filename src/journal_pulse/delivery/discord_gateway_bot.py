@@ -93,6 +93,9 @@ def build_history_reply_messages(*, store, choice: str, summary_builder, now: da
     lines = [header, '']
     for article in articles:
         lines.append(f'- {article.published_at.date().isoformat()} | {article.title}')
+        zh_summary = summary_builder(article).strip()
+        if zh_summary:
+            lines.append(f'  中文摘要：{zh_summary}')
     return _split_message_chunks(lines)
 
 
@@ -145,15 +148,10 @@ class JournalPulseDiscordGatewayBot(discord.Client):
         request_key = (message.channel.id, message.author.id)
         if request_key in self.pending_history_requests and not self.user.mentioned_in(message):
             store = self.store_builder(self.settings)
-            summarizer = None
-            try:
-                summarizer = build_runtime_summarizer(self.settings)
-            except Exception:
-                summarizer = None
             replies = build_history_reply_messages(
                 store=store,
                 choice=message.content,
-                summary_builder=lambda article: build_brief_summary_zh(article, summarizer=summarizer),
+                summary_builder=lambda article: build_brief_summary_zh(article, summarizer=None),
             )
             if parse_history_range(message.content) is not None:
                 self.pending_history_requests.discard(request_key)

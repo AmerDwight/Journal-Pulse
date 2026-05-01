@@ -98,10 +98,16 @@ def build_monitor_delta(*, settings: Settings | None = None):
     settings = settings or Settings()
     store = build_runtime_store(settings)
     previous_digest = load_latest_digest(store)
+    summarizer = None
+    try:
+        summarizer = build_runtime_summarizer(settings)
+    except Exception:
+        summarizer = None
     current_digest = crawl_sources_once(
         sources=build_default_sources(),
         registry=build_runtime_registry(),
         store=store,
+        summarizer=summarizer,
     )
     return build_new_articles_digest(current_digest=current_digest, previous_digest=previous_digest)
 
@@ -142,10 +148,16 @@ def run_discord_gateway_bot(*, settings: Settings | None = None) -> str:
 @app.command('crawl-once')
 def crawl_once() -> None:
     settings = Settings()
+    summarizer = None
+    try:
+        summarizer = build_runtime_summarizer(settings)
+    except Exception:
+        summarizer = None
     digest = crawl_sources_once(
         sources=build_default_sources(),
         registry=build_runtime_registry(),
         store=build_runtime_store(settings),
+        summarizer=summarizer,
     )
     typer.echo(f'Ingested {len(digest.articles)} deduplicated articles')
 

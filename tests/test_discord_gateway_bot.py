@@ -86,9 +86,10 @@ def test_parse_history_range_understands_supported_labels():
     assert parsed.since == datetime(2026, 4, 16, 12, 0, tzinfo=timezone.utc)
 
 
-def test_build_history_reply_messages_filters_articles_by_selected_window_without_inline_summaries():
+def test_build_history_reply_messages_filters_articles_by_selected_window_and_reuses_cached_summaries():
     store = InMemoryObjectStore()
-    recent = _article(article_id='recent', title='Recent paper', published_at=datetime(2026, 4, 28, tzinfo=timezone.utc))
+    recent = _article(article_id='recent', title='Recent paper', published_at=datetime(2026, 4, 28, tzinfo=timezone.utc), summary='English summary')
+    recent = recent.model_copy(update={'brief_summary_zh': '快取摘要：recent'})
     old = _article(article_id='old', title='Old paper', published_at=datetime(2026, 4, 10, tzinfo=timezone.utc))
     store.put_json('articles/recent.json', recent.model_dump(mode='json'))
     store.put_json('articles/old.json', old.model_dump(mode='json'))
@@ -97,13 +98,13 @@ def test_build_history_reply_messages_filters_articles_by_selected_window_withou
         store=store,
         choice='1周',
         now=NOW,
-        summary_builder=lambda article: f'摘要：{article.article_id}',
+        summary_builder=lambda article: article.brief_summary_zh,
     )
 
     combined = '\n'.join(messages)
     assert '最近 1周 內共 1 篇論文' in combined
     assert 'Recent paper' in combined
-    assert '摘要：recent' not in combined
+    assert '中文摘要：快取摘要：recent' in combined
     assert 'Old paper' not in combined
 
 
