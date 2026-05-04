@@ -100,3 +100,154 @@ def test_crawl_sources_once_persists_cached_chinese_summaries_when_summarizer_is
             'max_chars': 160,
         }
     ]
+
+
+
+def test_crawl_sources_once_does_not_cache_title_only_summary_text():
+    article = ArticleRecord(
+        source='nature',
+        source_type='rss',
+        article_id='nature-title-only',
+        title='The equity paradox of environmental DNA for biodiversity monitoring',
+        url='https://example.com/articles/title-only',
+        published_at=datetime(2026, 4, 26, tzinfo=timezone.utc),
+        summary='''<p>Nature, Published online: 28 April 2026; <a href="https://www.nature.com/articles/d41586-026-01349-3">doi:10.1038/d41586-026-01349-3</a></p>The equity paradox of environmental DNA for biodiversity monitoring''',
+    )
+    registry = SourceRegistry()
+    registry.register('rss', lambda definition: StubAdapter(definition, [article]))
+    store = InMemoryObjectStore()
+    summarizer = DummySummarizer('這其實只是標題翻譯')
+
+    crawl_sources_once(
+        sources=[SourceDefinition(name='nature', source_type='rss', endpoint='https://example.com/feed.xml')],
+        registry=registry,
+        store=store,
+        summarizer=summarizer,
+        generated_at=datetime(2026, 4, 26, tzinfo=timezone.utc),
+    )
+
+    stored_article = store.get_json('articles/url-https-example.com-articles-title-only.json')
+    assert stored_article.get('summary_zh', '') in {'', None}
+    assert stored_article.get('brief_summary_zh', '') in {'', None}
+    assert summarizer.calls == []
+
+
+def test_crawl_sources_once_reuses_cached_summaries_for_existing_articles_before_calling_summarizer():
+    article = ArticleRecord(
+        source='nature',
+        source_type='rss',
+        article_id='nature-existing',
+        title='Existing discovery',
+        url='https://example.com/articles/existing',
+        published_at=datetime(2026, 4, 27, tzinfo=timezone.utc),
+        summary='Fresh English summary that would be expensive to re-summarize.',
+    )
+    registry = SourceRegistry()
+    registry.register('rss', lambda definition: StubAdapter(definition, [article]))
+    store = InMemoryObjectStore()
+    store.put_json(
+        'articles/url-https-example.com-articles-existing.json',
+        article.model_copy(
+            update={
+                'summary_zh': '已快取的中文摘要。',
+                'brief_summary_zh': '已快取的短摘要。',
+            }
+        ).model_dump(mode='json')
+    )
+    summarizer = DummySummarizer('不應被呼叫')
+
+    digest = crawl_sources_once(
+        sources=[SourceDefinition(name='nature', source_type='rss', endpoint='https://example.com/feed.xml')],
+        registry=registry,
+        store=store,
+        summarizer=summarizer,
+        generated_at=datetime(2026, 4, 27, tzinfo=timezone.utc),
+    )
+
+    assert summarizer.calls == []
+    assert digest.articles[0].summary_zh == '已快取的中文摘要。'
+    assert digest.articles[0].brief_summary_zh == '已快取的短摘要。'
+    stored_article = store.get_json('articles/url-https-example.com-articles-existing.json')
+    assert stored_article['summary_zh'] == '已快取的中文摘要。'
+    assert stored_article['brief_summary_zh'] == '已快取的短摘要。'
+
+
+def test_crawl_sources_once_only_calls_summarizer_for_new_articles_missing_cached_summaries():
+    existing = ArticleRecord(
+        source='nature',
+        source_type='rss',
+        article_id='nature-existing',
+        title='Existing discovery',
+        url='https://example.com/articles/existing',
+        published_at=datetime(2026, 4, 27, tzinfo=timezone.utc),
+        summary='Existing English summary.',
+    )
+    new_article = ArticleRecord(
+        source='science',
+        source_type='rss',
+        article_id='science-new',
+        title='New discovery',
+        url='https://example.com/articles/new',
+        published_at=datetime(2026, 4, 28, tzinfo=timezone.utc),
+        summary='New English summary that should be summarized once.',
+    )
+    registry = SourceRegistry()
+    registry.register('rss', lambda definition: StubAdapter(definition, [existing] if definition.name == 'nature' else [new_article]))
+    store = InMemoryObjectStore()
+    store.put_json(
+        'articles/url-https-example.com-articles-existing.json',
+        existing.model_copy(
+            update={
+                'summary_zh': '已快取的中文摘要。',
+                'brief_summary_zh': '已快取的短摘要。',
+            }
+        ).model_dump(mode='json')
+    )
+    summarizer = DummySummarizer('給新文章的中文摘要。')
+
+    digest = crawl_sources_once(
+        sources=[
+            SourceDefinition(name='nature', source_type='rss', endpoint='https://example.com/nature.xml'),
+            SourceDefinition(name='science', source_type='rss', endpoint='https://example.com/science.xml'),
+        ],
+        registry=registry,
+        store=store,
+        summarizer=summarizer,
+        generated_at=datetime(2026, 4, 28, tzinfo=timezone.utc),
+    )
+
+    assert len(summarizer.calls) == 1
+    assert summarizer.calls[0]['title'] == 'New discovery'
+    by_title = {article.title: article for article in digest.articles}
+    assert by_title['Existing discovery'].summary_zh == '已快取的中文摘要。'
+    assert by_title['New discovery'].summary_zh == '給新文章的中文摘要。'
+
+
+def test_crawl_sources_once_ignores_invalid_cached_article_payloads():
+    article = ArticleRecord(
+        source='nature',
+        source_type='rss',
+        article_id='nature-invalid-cache',
+        title='Recovered after bad cache',
+        url='https://example.com/articles/invalid-cache',
+        published_at=datetime(2026, 4, 28, tzinfo=timezone.utc),
+        summary='Fresh summary text that should be used when cache payload is invalid.',
+    )
+    registry = SourceRegistry()
+    registry.register('rss', lambda definition: StubAdapter(definition, [article]))
+    store = InMemoryObjectStore()
+    store.put_json('articles/url-https-example.com-articles-invalid-cache.json', {'bad': 'payload'})
+    summarizer = DummySummarizer('新的中文摘要。')
+
+    digest = crawl_sources_once(
+        sources=[SourceDefinition(name='nature', source_type='rss', endpoint='https://example.com/feed.xml')],
+        registry=registry,
+        store=store,
+        summarizer=summarizer,
+        generated_at=datetime(2026, 4, 28, tzinfo=timezone.utc),
+    )
+
+    assert len(summarizer.calls) == 1
+    assert digest.articles[0].summary_zh == '新的中文摘要。'
+    stored_article = store.get_json('articles/url-https-example.com-articles-invalid-cache.json')
+    assert stored_article['summary_zh'] == '新的中文摘要。'

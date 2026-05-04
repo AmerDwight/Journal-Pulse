@@ -36,6 +36,8 @@ def _source_text(article: ArticleRecord) -> str:
     summary = clean_summary_text(getattr(article, 'summary', ''))
     abstract = clean_summary_text(getattr(article, 'abstract', ''))
     title = clean_summary_text(getattr(article, 'title', ''))
+    if summary and title and summary == title:
+        return abstract or ''
     return (summary or abstract or title).strip()
 
 
@@ -81,7 +83,7 @@ def build_detail_summary_zh(article: ArticleRecord, *, summarizer=None, max_char
     if summarized:
         return summarized
 
-    source_text = _source_text(article)
+    source_text = _source_text(article) or clean_summary_text(getattr(article, 'title', ''))
     return f'中文摘要待補：{_truncate(source_text, 120)}'
 
 

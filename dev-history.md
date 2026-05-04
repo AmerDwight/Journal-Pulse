@@ -1,6 +1,6 @@
 # Dev History
 
-> Last updated: 2026-04-30
+> Last updated: 2026-05-04
 >
 > This file records project progress in a sanitized form. Secrets, passwords, tokens, and raw credential values must never be written here.
 
@@ -155,7 +155,28 @@ Observed result during verification:
 - ingest-time LLM work shifts the latency cost to the crawl phase instead of the interactive Discord history path
 - detail and broadcast paths can reuse the same persisted Chinese summary fields, reducing repeated summarization work across features
 
-### 8. CLI additions
+### 8. Summary-quality hardening and PubMed abstract enrichment
+
+The ingest and summarization path was further tightened to avoid wasting LLM calls on low-information source text and to improve the English input available for Chinese summaries.
+
+Implemented direction:
+
+- PubMed ingest now performs `efetch` abstract retrieval in addition to `esearch` + `esummary`
+- structured PubMed abstract sections are flattened into canonical article `abstract` text while preserving labels such as `Methods:` when present
+- records without an abstract remain valid and continue through ingest with an empty `abstract`
+- transient `efetch` failures or malformed abstract XML fall back to empty-abstract ingest instead of aborting the whole PubMed fetch
+- ingest now checks storage for an existing article record and reuses cached `summary_zh` / `brief_summary_zh` before deciding whether to call the summarizer again
+- corrupt cached article payloads are ignored for summary reuse so a bad stored record does not block fresh ingest
+- title-only cleaned source text is treated as missing enrichment input rather than as a real summary candidate
+- fallback detail formatting now uses the article title only as a read-time placeholder, without persisting a fake Chinese summary into storage
+
+Observed result during verification:
+
+- repeated crawls avoid re-summarizing already-cached articles, so ingest cost scales much better with newly discovered items
+- PubMed-backed summaries can use real abstract content when available instead of relying only on title-level metadata
+- metadata-only feed blurbs no longer produce cached Chinese title translations masquerading as article summaries
+
+### 9. CLI additions
 
 The CLI was extended to support the interactive bot workflow.
 
@@ -186,6 +207,9 @@ Coverage was added or updated for:
 - history reply formatting and chunking
 - reuse of cached Chinese summaries in history replies
 - ingest-time persistence of generated Chinese summaries
+- reuse of previously cached Chinese summaries across repeated ingest runs
+- suppression of title-only pseudo-summaries during caching and detail fallback
+- PubMed abstract retrieval and XML abstract parsing
 - exclusion of future-dated records from bounded history windows
 - CLI command integration
 - config fields for Discord and LLM behavior
@@ -195,7 +219,7 @@ Coverage was added or updated for:
 
 At the latest verified point, the full test suite passed:
 
-- `63 passed`
+- `74 passed`
 - one non-blocking dependency warning from `discord.py` / `audioop` deprecation
 
 ## Files Added or Significantly Updated
@@ -217,11 +241,14 @@ At the latest verified point, the full test suite passed:
 - `src/journal_pulse/services/summarization.py`
 - `src/journal_pulse/services/query.py`
 - `src/journal_pulse/services/monitoring.py`
+- `src/journal_pulse/services/llm.py`
+- `src/journal_pulse/sources/adapters.py`
 - `src/journal_pulse/config.py`
 - `src/journal_pulse/cli.py`
 - `src/journal_pulse/delivery/discord_gateway_bot.py`
 - `pyproject.toml`
 - `tests/test_query.py`
+- `tests/test_adapters_fetch.py`
 - `tests/test_ingest.py`
 - `tests/test_summarization.py`
 - `tests/test_discord_gateway_bot.py`
@@ -229,18 +256,24 @@ At the latest verified point, the full test suite passed:
 - `tests/test_config.py`
 - `tests/test_scheduler_cli.py`
 - `.env.example`
+- `.gitignore`
 - `README.md`
 
 ## Current Runtime Status
 
-At the latest known point during this development session:
+At the latest verified point for this development record:
 
-- scheduled monitoring process was running
-- Discord gateway bot process was running
 - one-shot Discord broadcast had previously succeeded in practice
+- the Discord gateway bot had successfully logged in during runtime verification
+- the bot process was later terminated with `SIGTERM` / exit code `-15`, which indicates external termination rather than an application crash
+- no Hermes-managed background process should be assumed to still be running unless re-verified live
 - interactive history replies were locally verified after the speed fix
 
-These runtime facts should be re-verified if the environment, credentials, intents, source mix, or deployment method changes.
+Operational recommendation:
+
+- avoid treating ad-hoc Hermes background sessions as the long-term deployment model
+- prefer a single persistent process manager for scheduled monitoring and bot uptime
+- re-verify runtime state whenever credentials, intents, deployment method, or source mix changes
 
 ## Known Operational Notes
 

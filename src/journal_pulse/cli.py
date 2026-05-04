@@ -24,7 +24,6 @@ from journal_pulse.sources.adapters import register_builtin_source_types
 from journal_pulse.sources.base import SourceRegistry
 from journal_pulse.sources.defaults import build_default_sources
 from journal_pulse.storage.local_store import LocalObjectStore
-from journal_pulse.storage.memory import InMemoryObjectStore
 
 app = typer.Typer(help='Journal Pulse CLI')
 

@@ -5,6 +5,7 @@ from re import sub
 from time import struct_time
 from typing import Any
 from xml.etree import ElementTree
+from xml.etree.ElementTree import ParseError
 
 import httpx
 
@@ -99,6 +100,7 @@ class APIQueryAdapter:
         response.raise_for_status()
         payload = response.json()
         result = payload.get('result', {})
+        abstracts = self._fetch_pubmed_abstracts(ids)
 
         articles: list[ArticleRecord] = []
         for uid in result.get('uids', []):
@@ -114,10 +116,33 @@ class APIQueryAdapter:
                     url=url,
                     doi=doi,
                     published_at=_parse_pubmed_date(str(record.get('pubdate', ''))),
+                    abstract=abstracts.get(str(uid), ''),
                     metadata={'journal': str(record.get('fulljournalname', ''))},
                 )
             )
         return articles
+
+    def _fetch_pubmed_abstracts(self, ids: list[str]) -> dict[str, str]:
+        if not ids:
+            return {}
+        params = {
+            'db': 'pubmed',
+            'retmode': 'xml',
+            'rettype': 'abstract',
+            'id': ','.join(ids),
+        }
+        try:
+            response = self.http_client.get(f'{self.endpoint}/efetch.fcgi', params=params, timeout=20.0)
+            response.raise_for_status()
+        except Exception:
+            return {}
+        xml_text = getattr(response, 'text', '')
+        if not xml_text:
+            return {}
+        try:
+            return _parse_pubmed_abstracts(xml_text)
+        except ParseError:
+            return {}
 
     def _fetch_crossref(self) -> list[ArticleRecord]:
         response = self.http_client.get(self.endpoint, params=_build_crossref_params(self.definition.metadata), timeout=20.0)
@@ -191,6 +216,24 @@ def _extract_pubmed_doi(record: dict[str, Any]) -> str:
     if elocation.lower().startswith('doi:'):
         return elocation.split(':', 1)[1].strip()
     return ''
+
+
+def _parse_pubmed_abstracts(xml_text: str) -> dict[str, str]:
+    root = ElementTree.fromstring(xml_text)
+    abstracts: dict[str, str] = {}
+    for article in root.findall('.//PubmedArticle'):
+        pmid = (article.findtext('.//MedlineCitation/PMID') or '').strip()
+        if not pmid:
+            continue
+        segments: list[str] = []
+        for node in article.findall('.//Abstract/AbstractText'):
+            text = ''.join(node.itertext()).strip()
+            if not text:
+                continue
+            label = (node.attrib.get('Label') or '').strip()
+            segments.append(f'{label}: {text}' if label else text)
+        abstracts[pmid] = ' '.join(segments).strip()
+    return abstracts
 
 
 def _fetch_crossref_date(item: dict[str, Any]) -> datetime:

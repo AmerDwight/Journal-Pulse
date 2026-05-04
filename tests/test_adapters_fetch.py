@@ -1,22 +1,27 @@
 from datetime import datetime, timezone
 
+import httpx
+
 from journal_pulse.sources.adapters import APIQueryAdapter, RSSFeedAdapter
 from journal_pulse.sources.base import SourceDefinition
 
 
 class StubResponse:
-    def __init__(self, payload: dict):
+    def __init__(self, payload: dict | str):
         self._payload = payload
+        self.text = payload if isinstance(payload, str) else ''
 
     def raise_for_status(self) -> None:
         return None
 
     def json(self) -> dict:
-        return self._payload
+        if isinstance(self._payload, dict):
+            return self._payload
+        raise TypeError('StubResponse payload is not JSON')
 
 
 class StubHttpClient:
-    def __init__(self, payloads: dict[str, dict]):
+    def __init__(self, payloads: dict[str, dict | str]):
         self.payloads = payloads
         self.requested_urls: list[str] = []
         self.requested_params: list[dict] = []
@@ -24,6 +29,15 @@ class StubHttpClient:
     def get(self, url: str, params: dict | None = None, timeout: float | None = None) -> StubResponse:
         self.requested_urls.append(url)
         self.requested_params.append(params or {})
+        return StubResponse(self.payloads[url])
+
+
+class FailingEfetchHttpClient(StubHttpClient):
+    def get(self, url: str, params: dict | None = None, timeout: float | None = None) -> StubResponse:
+        self.requested_urls.append(url)
+        self.requested_params.append(params or {})
+        if url.endswith('/efetch.fcgi'):
+            raise httpx.ReadTimeout('efetch timed out')
         return StubResponse(self.payloads[url])
 
 
@@ -57,7 +71,7 @@ def test_rss_feed_adapter_fetches_article_records_from_feed(monkeypatch):
     assert articles[0].published_at == datetime(2026, 4, 25, 12, 30, tzinfo=timezone.utc)
 
 
-def test_pubmed_adapter_fetches_article_records_from_esearch_and_esummary_payloads():
+def test_pubmed_adapter_fetches_article_records_from_esearch_esummary_and_efetch_payloads():
     definition = SourceDefinition(
         name="pubmed",
         source_type="api",
@@ -82,6 +96,21 @@ def test_pubmed_adapter_fetches_article_records_from_esearch_and_esummary_payloa
                     },
                 }
             },
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi": """
+                <PubmedArticleSet>
+                  <PubmedArticle>
+                    <MedlineCitation>
+                      <PMID>12345</PMID>
+                      <Article>
+                        <Abstract>
+                          <AbstractText>First abstract sentence.</AbstractText>
+                          <AbstractText Label=\"Methods\">Second abstract sentence.</AbstractText>
+                        </Abstract>
+                      </Article>
+                    </MedlineCitation>
+                  </PubmedArticle>
+                </PubmedArticleSet>
+            """,
         }
     )
     adapter = APIQueryAdapter(definition, http_client=client)
@@ -94,11 +123,120 @@ def test_pubmed_adapter_fetches_article_records_from_esearch_and_esummary_payloa
     assert articles[0].article_id == "12345"
     assert articles[0].doi == "10.1000/pubmed-12345"
     assert articles[0].title == "PubMed paper"
+    assert articles[0].abstract == "First abstract sentence. Methods: Second abstract sentence."
     assert articles[0].metadata["journal"] == "Nature"
     assert client.requested_urls == [
         "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",
         "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi",
+        "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
     ]
     assert client.requested_params[0]["db"] == "pubmed"
     assert 'Nature[jour]' in client.requested_params[0]["term"]
     assert client.requested_params[1]["id"] == "12345"
+    assert client.requested_params[2]["id"] == "12345"
+    assert client.requested_params[2]["rettype"] == "abstract"
+
+
+def test_pubmed_adapter_leaves_abstract_empty_when_efetch_has_no_matching_record():
+    definition = SourceDefinition(
+        name="pubmed",
+        source_type="api",
+        endpoint="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+        metadata={"journal_whitelist": ["Nature"], "retmax": 5},
+    )
+    client = StubHttpClient(
+        {
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi": {
+                "esearchresult": {"idlist": ["12345"]}
+            },
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi": {
+                "result": {
+                    "uids": ["12345"],
+                    "12345": {
+                        "uid": "12345",
+                        "title": "PubMed paper",
+                        "pubdate": "2026 Apr 25",
+                        "articleids": [],
+                        "fulljournalname": "Nature",
+                    },
+                }
+            },
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi": "<PubmedArticleSet></PubmedArticleSet>",
+        }
+    )
+    adapter = APIQueryAdapter(definition, http_client=client)
+
+    articles = adapter.fetch()
+
+    assert len(articles) == 1
+    assert articles[0].abstract == ""
+
+
+def test_pubmed_adapter_keeps_articles_when_efetch_request_fails():
+    definition = SourceDefinition(
+        name="pubmed",
+        source_type="api",
+        endpoint="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+        metadata={"journal_whitelist": ["Nature"], "retmax": 5},
+    )
+    client = FailingEfetchHttpClient(
+        {
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi": {
+                "esearchresult": {"idlist": ["12345"]}
+            },
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi": {
+                "result": {
+                    "uids": ["12345"],
+                    "12345": {
+                        "uid": "12345",
+                        "title": "PubMed paper",
+                        "pubdate": "2026 Apr 25",
+                        "articleids": [],
+                        "fulljournalname": "Nature",
+                    },
+                }
+            },
+        }
+    )
+    adapter = APIQueryAdapter(definition, http_client=client)
+
+    articles = adapter.fetch()
+
+    assert len(articles) == 1
+    assert articles[0].title == "PubMed paper"
+    assert articles[0].abstract == ""
+
+
+def test_pubmed_adapter_keeps_articles_when_efetch_xml_is_malformed():
+    definition = SourceDefinition(
+        name="pubmed",
+        source_type="api",
+        endpoint="https://eutils.ncbi.nlm.nih.gov/entrez/eutils/",
+        metadata={"journal_whitelist": ["Nature"], "retmax": 5},
+    )
+    client = StubHttpClient(
+        {
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi": {
+                "esearchresult": {"idlist": ["12345"]}
+            },
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi": {
+                "result": {
+                    "uids": ["12345"],
+                    "12345": {
+                        "uid": "12345",
+                        "title": "PubMed paper",
+                        "pubdate": "2026 Apr 25",
+                        "articleids": [],
+                        "fulljournalname": "Nature",
+                    },
+                }
+            },
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi": "<PubmedArticleSet><PubmedArticle>",
+        }
+    )
+    adapter = APIQueryAdapter(definition, http_client=client)
+
+    articles = adapter.fetch()
+
+    assert len(articles) == 1
+    assert articles[0].abstract == ""
