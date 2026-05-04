@@ -110,3 +110,45 @@ def test_build_detail_summary_zh_fallback_text_is_clean_when_summarizer_missing(
     result = build_detail_summary_zh(article, summarizer=None)
 
     assert result == '中文摘要待補：Do octopus brains work like humans — or is there another way to be smart?'
+
+
+
+def test_build_detail_summary_zh_does_not_treat_title_only_feed_text_as_real_summary():
+    article = ArticleRecord(
+        source='nature',
+        article_id='nature-title-only',
+        title='The equity paradox of environmental DNA for biodiversity monitoring',
+        url='https://example.com/nature-title-only',
+        published_at=datetime(2026, 4, 29, tzinfo=timezone.utc),
+        summary='''<p>Nature, Published online: 28 April 2026; <a href="https://www.nature.com/articles/d41586-026-01349-3">doi:10.1038/d41586-026-01349-3</a></p>The equity paradox of environmental DNA for biodiversity monitoring''',
+    )
+    summarizer = DummySummarizer('不應被呼叫')
+
+    result = build_detail_summary_zh(article, summarizer=summarizer)
+
+    assert result == '中文摘要待補：The equity paradox of environmental DNA for biodiversity monitoring'
+    assert summarizer.calls == []
+
+
+def test_build_detail_summary_zh_prefers_abstract_when_summary_collapses_to_title():
+    article = ArticleRecord(
+        source='nature',
+        article_id='nature-title-plus-abstract',
+        title='The equity paradox of environmental DNA for biodiversity monitoring',
+        url='https://example.com/nature-title-plus-abstract',
+        published_at=datetime(2026, 4, 29, tzinfo=timezone.utc),
+        summary='''<p>Nature, Published online: 28 April 2026; <a href="https://www.nature.com/articles/d41586-026-01349-3">doi:10.1038/d41586-026-01349-3</a></p>The equity paradox of environmental DNA for biodiversity monitoring''',
+        abstract='Researchers examine how environmental DNA monitoring can widen biodiversity coverage while still amplifying resource inequities across regions.',
+    )
+    summarizer = DummySummarizer('應優先使用 abstract')
+
+    result = build_detail_summary_zh(article, summarizer=summarizer)
+
+    assert result == '應優先使用 abstract'
+    assert summarizer.calls == [
+        {
+            'title': 'The equity paradox of environmental DNA for biodiversity monitoring',
+            'source_text': 'Researchers examine how environmental DNA monitoring can widen biodiversity coverage while still amplifying resource inequities across regions.',
+            'max_chars': 160,
+        }
+    ]

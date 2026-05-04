@@ -12,6 +12,7 @@ venv/
 
 # Local runtime data
 data/
+data.backup-*/
 
 # OS / editor
 .DS_Store
